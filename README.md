@@ -9,3 +9,6 @@ To run this code, you will need to download the 'TelecomCustomerChurn' file, and
 This repository also includes a PowerBI dashboard, although it is too large to be displayed in Github. You can download the 'Customer Churn Dashboard.pbix' file and run it on your local computer. Images of this dashboard are also included in this repository for convienience, though they aren't interactive.
 
 Lastly, a full final report of what the data tells us is included in a Word document, including visuals from the process with explanations. The report covers everything from what customer churn is, why it is important, and what steps we could recommend the telecommunication company.
+
+Link to the Kaggle Dataset:
+https://www.kaggle.com/datasets/blastchar/telco-customer-churn
