@@ -16,12 +16,10 @@ import seaborn as sns
 # Import Libraries for Machine Learning Model
 
 from sklearn import metrics
-
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import recall_score, confusion_matrix, classification_report, accuracy_score, confusion_matrix
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.linear_model import LogisticRegression
-from imblearn.combine import SMOTEENN
 from sklearn.ensemble import RandomForestClassifier
 
 #Load the dataset and print the head
@@ -53,11 +51,6 @@ was over $118, so there's a wide range in monthly payment ammounts.
 
 
 """
-
-#Find the number of customers, and how many have churned.
-sns.countplot(x='Churn', data=df, palette='husl')
-plt.title('Number of Churned Customers', fontsize = 12)
-plt.show()
 
 #Check what data type each column is
 print("\nData Types")
@@ -130,7 +123,7 @@ df.isna().sum()
 df.shape
 
 #Divide the tenure into bins and assign them to groups
-#Used ChatGPT here to help debug, and figure out edge cases
+#Used Deepseek here to help debug, and figure out edge cases
 
 labels = ["{0} - {1}".format(i,i+5) for i in range (1,72,6)]
 
@@ -144,22 +137,12 @@ sns.countplot(x=df['TenureGroup'],hue='Churn',data=df, palette='rocket_r')
 plt.title('Number of Churned Customers by Tenure (6 month Intervals)', fontsize = 12)
 plt.show()
 
-"""
-
-```
-Now that we have transformed Tenure into Tenure Group,
-```
-
-"""
-
-#Drop Tenure and just keep TenureGroup
-
 """### **EXPLORATORY DATA ANALYSIS**"""
 
 #Show count of each category for churn
 df['Churn'].value_counts()
 
-#Find the number of customers, and how many have churned.
+#Find the number of customers, how many have churned, and make a chart.
 sns.countplot(x='Churn', data=df, hue= 'Churn', palette='rocket_r')
 plt.title('Number of Churned Customers', fontsize = 12)
 plt.show()
@@ -193,6 +176,8 @@ of our data comes from younger people.
 """
 
 #Plot all the important countplots, excluding numerical columns for charges
+#Learned about enumerate via youtube @ https://www.youtube.com/watch?v=joevqIG1I7k
+#Used Deepseek to help debug
 
 for i, column in enumerate(df.drop(columns=['Churn','TotalCharges','MonthlyCharges','tenure'])): #Excludes TotalCharges and MontlyCharges
     plt.figure(i,figsize=(15,6))
@@ -212,56 +197,89 @@ sns.heatmap(df.corr(),cmap='coolwarm')
 #Sort the most positively to negatively correlated variables with 'churn'
 df.corr()['Churn'].sort_values(ascending = False)
 
-#Plot a bar chart of all the variable sorted from most correlated to least.
+#Plot a bar chart of all the variables sorted from most correlated to least.
 plt.figure(figsize=(10,8))
 df.corr()['Churn'].sort_values(ascending = False).drop(['Churn']).plot(kind='bar')
 plt.show()
 
-"""### CREATE MACHINE LEARNING MODELS
-Prepare, Train-Test Split, Balance Data, Train the Model, and Evaluate.
+"""# CREATE MACHINE LEARNING MODELS
 
-# Logistic Regression
-"""
+##Prepare, Train-Test Split, Balance Data, Train the Model, and Evaluate.
 
-# Split features and target
-X = df.drop('Churn', axis=1)
-y = df['Churn']
-
-#Train-test
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
-
-"""
+### MODELING USING UNDERSAMPLING
 
 ```
 I originally didn't balance the dataset, and as a result my model, understandably
-had issues. In my research I learned about SMOTEENN, which allows us to easily balance the dataset.
-```
+had issues. So the following is setting up the data, creating a function to return each model's evaluation scores, and then balancing the data by first, trying undersampling the data, and then by trying to balance the data by class weight.
 
+Then seeing if both a logistic regression or a random forest model performs better for each balance method.
+```
 """
 
-#Use smoteenn to balance the data
-smote_enn = SMOTEENN(random_state=42)
-X_resampled, y_resampled = smote_enn.fit_resample(X_train, y_train)
+#Import resample to help get smaller resample of majority class
+from sklearn.utils import resample
 
-#Train the Logistic Regression Model
+df_majority = df[df['Churn'] == 0]
+df_minority = df[df['Churn'] == 1]
+
+#Downsize the majority no-churn class
+df_majority_downsampled = resample(df_majority, replace=False, n_samples=len(df_minority), random_state=42) #Used deepseek to fix and add replace=False
+
+#Combine for balanced dataset
+df_balanced = pd.concat([df_majority_downsampled, df_minority])
+
+#Split features from the churn target
+X = df_balanced.drop('Churn', axis=1)
+y = df_balanced['Churn']
+
+#Train-Test Split 80/20
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+
+#Create a funtion to evaluate the models
+def evaluate_model(name, model, X_test, y_test):
+    y_pred = model.predict(X_test)
+    print(f"\n{name} Evaluation:")
+    print("Accuracy:", accuracy_score(y_test, y_pred))
+    print("Recall:", recall_score(y_test, y_pred))
+    print("Confusion Matrix:\n", confusion_matrix(y_test, y_pred))
+    print("\nClassification Report:\n", classification_report(y_test, y_pred))
+
+    # Plot confusion matrix
+    cm = confusion_matrix(y_test, y_pred)
+    sns.heatmap(cm, annot=True, fmt='d', cmap='coolwarm',
+                xticklabels=["No Churn", "Churn"],
+                yticklabels=["No Churn", "Churn"])
+    plt.title(f'Confusion Matrix - {name}')
+    plt.xlabel('Predicted')
+    plt.ylabel('Actual')
+    plt.show()
+
+#Logistic Regression with Under sampling
 log_model = LogisticRegression(max_iter=1000, solver='liblinear')
-log_model.fit(X_resampled, y_resampled)
+log_model.fit(X_train, y_train)
+evaluate_model("Logistic Regression", log_model, X_test, y_test)
 
-#Evaluate the Model
-y_pred = log_model.predict(X_test)
+#Random Forest with under sampling
+rf_model = RandomForestClassifier(n_estimators=100, random_state=42)
+rf_model.fit(X_train, y_train)
+evaluate_model("Random Forest", rf_model, X_test, y_test)
 
-# Metrics
-print("Accuracy:", accuracy_score(y_test, y_pred))
-print("Recall:", recall_score(y_test, y_pred))
-print("Confusion Matrix:\n", confusion_matrix(y_test, y_pred))
-print("\nClassification Report:\n", classification_report(y_test, y_pred))
+"""### MODELING WITH BALANCED CLASSES
+"""
 
-#Plot Confusion Matrix
-y_pred = log_model.predict(X_test)
-cm = confusion_matrix(y_test, y_pred)
-sns.heatmap(cm, annot=True, fmt='d', cmap='coolwarm', xticklabels=["No Churn", "Churn"], yticklabels=["No Churn", "Churn"])
+# Split Features and Target
+X = df.drop('Churn', axis=1)
+y = df['Churn']
 
-plt.title('Confusion Matrix - Logistic Regression')
-plt.xlabel('Predicted')
-plt.ylabel('Actual')
-plt.show()
+#Train-Test Split
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+
+#Logistic Regression with Class Weight
+log_model = LogisticRegression(max_iter=1000, class_weight='balanced', solver='liblinear')
+log_model.fit(X_train, y_train)
+evaluate_model("Logistic Regression (Balanced)", log_model, X_test, y_test)
+
+#Random Forest with Class Weight
+rf_model = RandomForestClassifier(n_estimators=100, class_weight='balanced', random_state=42)
+rf_model.fit(X_train, y_train)
+evaluate_model("Random Forest (Balanced)", rf_model, X_test, y_test)
