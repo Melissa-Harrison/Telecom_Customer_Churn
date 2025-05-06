@@ -12,3 +12,6 @@ Lastly, a full final report of what the data tells us is included in a Word docu
 
 Link to the Kaggle Dataset:
 https://www.kaggle.com/datasets/blastchar/telco-customer-churn
+
+Link to the Google Collab:
+https://github.com/Melissa-Harrison/Telecom_Customer_Churn/tree/main
